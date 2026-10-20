@@ -1,0 +1,7 @@
+{
+  "name": "@competitor-pulse/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HTTP API types shared by the backend and the frontend (type-only, no runtime code)",
+  "types": "index.d.ts"
+}

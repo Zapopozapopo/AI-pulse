@@ -1,0 +1,64 @@
+{
+  "name": "@competitor-pulse/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CompetitorPulse backend: HTTP API (main.ts) and queue worker (worker.ts)",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "start:dev": "nest start --watch",
+    "start:worker:dev": "nest start --watch --entryFile worker",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate",
+    "test": "jest",
+    "test:int": "bash test/run-int.sh"
+  },
+  "dependencies": {
+    "@bull-board/api": "^6.21.3",
+    "@bull-board/express": "^6.21.3",
+    "@bull-board/nestjs": "^6.21.3",
+    "@nestjs/bullmq": "^11.0.5",
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "@prisma/client": "^6.19.3",
+    "bullmq": "^5.81.5",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "nestjs-pino": "^4.6.1",
+    "pino-http": "^10.5.0",
+    "prisma": "^6.19.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@competitor-pulse/contracts": "*",
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/testing": "^11.1.0",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.20.5",
+    "jest": "^29.7.0",
+    "pino-pretty": "^13.0.0",
+    "ts-jest": "^29.4.15",
+    "typescript": "^5.9.3"
+  },
+  "jest": {
+    "rootDir": ".",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json"
+    ],
+    "testEnvironment": "node"
+  }
+}

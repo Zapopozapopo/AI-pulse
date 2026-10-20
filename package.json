@@ -1,0 +1,23 @@
+{
+  "name": "competitor-pulse",
+  "private": true,
+  "description": "Tracks competitor listings over time and explains changes with an LLM",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "dev:infra": "docker compose up -d postgres redis mock-llm listing-source",
+    "dev:api": "npm run start:dev -w @competitor-pulse/api",
+    "dev:worker": "npm run start:worker:dev -w @competitor-pulse/api",
+    "dev:web": "npm run dev -w @competitor-pulse/web",
+    "e2e": "bash scripts/e2e.sh",
+    "test:int": "npm run test:int -w @competitor-pulse/api"
+  }
+}

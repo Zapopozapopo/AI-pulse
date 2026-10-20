@@ -1,0 +1,17 @@
+{
+  "name": "@competitor-pulse/listing-source",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local stub of the competitor data source: returns the next canned snapshot per competitor id on every call",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
+  }
+}

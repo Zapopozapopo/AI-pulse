@@ -1,0 +1,111 @@
+# One-command local startup:  docker compose up --build   ->  http://localhost:8080
+# All ports are published on 127.0.0.1 only: nothing has auth (per the assignment), Postgres/Redis
+# use demo credentials, and the mock-llm / listing-source control endpoints are open.
+name: competitor-pulse
+
+x-api-env: &api-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgresql://pulse:pulse@postgres:5432/competitor_pulse?schema=public
+  REDIS_URL: redis://redis:6379
+  LISTING_SOURCE_URL: http://listing-source:4002
+  LLM_BASE_URL: http://mock-llm:4001/v1
+  LLM_API_KEY: not-needed-for-mock
+  LLM_MODEL: mock-llm
+  LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-10000}
+  LLM_MAX_ATTEMPTS: ${LLM_MAX_ATTEMPTS:-5}
+  LLM_RATE_PER_SEC: ${LLM_RATE_PER_SEC:-5}
+  SUMMARY_CONCURRENCY: ${SUMMARY_CONCURRENCY:-4}
+  # Short interval so the demo shows changes quickly; production would be 900 (15 min).
+  POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-20}
+  POLL_JITTER_RATIO: ${POLL_JITTER_RATIO:-0.1}
+  SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-5}
+  RECONCILE_INTERVAL_SECONDS: ${RECONCILE_INTERVAL_SECONDS:-60}
+  RECONCILE_PENDING_AFTER_SECONDS: ${RECONCILE_PENDING_AFTER_SECONDS:-120}
+
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: pulse
+      POSTGRES_DB: competitor_pulse
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse -d competitor_pulse"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    # AOF persistence + noeviction: BullMQ must never have queue keys evicted.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mock-llm:
+    restart: unless-stopped
+    build: { context: ., dockerfile: infra/mock-llm/Dockerfile }
+    ports: ["127.0.0.1:${MOCK_LLM_PORT:-4001}:4001"]
+
+  listing-source:
+    restart: unless-stopped
+    build: { context: ., dockerfile: apps/listing-source/Dockerfile }
+    ports: ["127.0.0.1:${LISTING_SOURCE_PORT:-4002}:4002"]
+
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: competitor-pulse-api
+    command: ["/repo/node_modules/.bin/prisma", "migrate", "deploy"]
+    working_dir: /repo/apps/api
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    image: competitor-pulse-api
+    command: ["node", "dist/main.js"]
+    environment: *api-env
+    ports: ["127.0.0.1:${API_PORT:-3000}:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    image: competitor-pulse-api
+    command: ["node", "dist/worker.js"]
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      listing-source: { condition: service_healthy }
+      mock-llm: { condition: service_healthy }
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  web:
+    restart: unless-stopped
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports: ["127.0.0.1:${WEB_PORT:-8080}:80"]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

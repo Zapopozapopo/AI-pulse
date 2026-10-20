@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SummaryStatus {
+  none
+  pending
+  completed
+  failed
+
+  @@map("summary_status")
+}
+
+/// A tracked competitor. Also holds the scheduling state, so the database (not Redis)
+/// is the source of truth for "who is due for a poll".
+model Competitor {
+  id                  String    @id
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Soft delete: removing a competitor keeps its history, re-tracking it resumes the timeline.
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(3)
+  nextPollAt          DateTime  @default(now()) @map("next_poll_at") @db.Timestamptz(3)
+  lastPolledAt        DateTime? @map("last_polled_at") @db.Timestamptz(3)
+  /// Denormalized pointer + hash of the latest snapshot: change detection is an O(1)
+  /// hash comparison instead of a "latest snapshot" query on every poll.
+  /// Plain column (no FK) to avoid a circular foreign key with snapshots.
+  lastSnapshotId      BigInt?   @map("last_snapshot_id")
+  lastContentHash     String?   @map("last_content_hash")
+  lastError           String?   @map("last_error")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+
+  snapshots Snapshot[]
+
+  @@map("competitors")
+}
+
+/// Every fetch is persisted, changed or not, so the timeline is a complete history.
+model Snapshot {
+  id                  BigInt        @id @default(autoincrement())
+  competitorId        String        @map("competitor_id")
+  fetchedAt           DateTime      @map("fetched_at") @db.Timestamptz(3)
+  title               String
+  tagline             String
+  price               String
+  description         String
+  contentHash         String        @map("content_hash")
+  previousSnapshotId  BigInt?       @map("previous_snapshot_id")
+  previousContentHash String?       @map("previous_content_hash")
+  changed             Boolean
+  changedFields       String[]      @default([]) @map("changed_fields")
+  summary             String?
+  summaryStatus       SummaryStatus @default(none) @map("summary_status")
+  summaryError        String?       @map("summary_error")
+  summaryAttempts     Int           @default(0) @map("summary_attempts")
+  summarizedAt        DateTime?     @map("summarized_at") @db.Timestamptz(3)
+  llmModel            String?       @map("llm_model")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  competitor Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  /// Timeline query: newest first per competitor, keyset-paginated.
+  @@index([competitorId, fetchedAt(sort: Desc), id(sort: Desc)], map: "snapshots_timeline_idx")
+  @@map("snapshots")
+}
